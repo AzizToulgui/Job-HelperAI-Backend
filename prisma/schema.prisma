@@ -1,0 +1,42 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Document {
+  id          String   @id @default(uuid())
+  filename    String
+  originalName String
+  mimeType    String
+  uploadedAt  DateTime @default(now())
+  chunks      Chunk[]
+}
+
+model Chunk {
+  id          String   @id @default(uuid())
+  documentId  String
+  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  content     String
+  pageNumber  Int?
+  embedding   Unsupported("vector(1024)")?   // Mistral embeddings are 1024-dim
+  metadata    Json?
+}
+
+model ChatSession {
+  id        String    @id @default(uuid())
+  createdAt DateTime  @default(now())
+  messages  Message[]
+}
+
+model Message {
+  id            String       @id @default(uuid())
+  sessionId     String
+  session       ChatSession  @relation(fields: [sessionId], references: [id])
+  role          String       // "user" | "assistant"
+  content       String
+  createdAt     DateTime     @default(now())
+  sources       Json?        // This will store the sources array
+}
