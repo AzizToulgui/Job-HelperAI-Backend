@@ -21,6 +21,7 @@ model Document {
   id          String    @id @default(cuid())
   title       String
   content     String?   // Full extracted text
+  filePath    String?   // Path to uploaded file on disk
   userId      String
   user        User      @relation(fields: [userId], references: [id])
   chunks      DocumentChunk[]
