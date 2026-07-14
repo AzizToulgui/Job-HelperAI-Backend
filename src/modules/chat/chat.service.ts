@@ -59,7 +59,7 @@ export class ChatService {
           ? `You are a helpful assistant. Answer using this context from the uploaded document:\n${context}`
           : 'You are a helpful assistant.',
       },
-      ...history.map((m) => ({ role: m.role as any, content: m.content })),
+      ...history.map((m) => ({ role: m.role, content: m.content })),
       { role: 'user', content: dto.message },
     ];
 

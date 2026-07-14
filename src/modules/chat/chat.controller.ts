@@ -6,11 +6,14 @@ import {
   Param,
   Req,
   Logger,
+  UseGuards,
 } from '@nestjs/common';
 import { ChatService } from './chat.service';
 import { SendMessageDto } from './dto/chat.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @Controller('chat')
+@UseGuards(JwtAuthGuard)
 export class ChatController {
   private readonly logger = new Logger(ChatController.name);
 
@@ -19,7 +22,7 @@ export class ChatController {
   @Post('message')
   async sendMessage(@Body() dto: SendMessageDto, @Req() req: any) {
     this.logger.log(`POST /chat/message - chatId=${dto.chatId || 'new'}`);
-    return this.chatService.sendMessage(req.user?.id || 'demo-user', dto);
+    return this.chatService.sendMessage(req.user.id, dto);
   }
 
   @Get(':chatId')

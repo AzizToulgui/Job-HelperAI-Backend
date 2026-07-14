@@ -8,6 +8,8 @@ import {
   Param,
   Logger,
   OnModuleInit,
+  UseGuards,
+  Req,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -16,6 +18,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { DocumentService } from './document.service';
 import { UploadDocumentDto } from './upload-document.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 const uploadsDir = path.join(process.cwd(), 'uploads');
 
@@ -33,6 +36,7 @@ export class DocumentController implements OnModuleInit {
   }
 
   @Post('upload')
+  @UseGuards(JwtAuthGuard)
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
@@ -47,11 +51,12 @@ export class DocumentController implements OnModuleInit {
   async upload(
     @UploadedFile() file: Express.Multer.File,
     @Body() dto: UploadDocumentDto,
+    @Req() req: any,
   ) {
     this.logger.log(
       `POST /documents/upload - title="${dto.title}", fileSize=${file?.size || 0} bytes`,
     );
-    return this.documentService.upload('demo-user', file, dto.title);
+    return this.documentService.upload(req.user.id, file, dto.title);
   }
 
   @Get(':id')
