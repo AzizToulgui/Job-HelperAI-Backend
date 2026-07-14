@@ -1,32 +1,44 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { PassportStrategy } from '@nestjs/passport';
-import { ExtractJwt, Strategy } from 'passport-jwt';
+import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { verifyToken } from '@clerk/backend';
 
-export interface JwtPayload {
-  sub: string;
+export interface ClerkUser {
+  id: string;
   email: string;
 }
 
 @Injectable()
-export class JwtStrategy extends PassportStrategy(Strategy) {
+export class JwtStrategy {
   private readonly logger = new Logger(JwtStrategy.name);
 
-  constructor(configService: ConfigService) {
-    const jwtSecret = configService.get<string>('JWT_SECRET');
-    if (!jwtSecret) {
-      throw new Error('JWT_SECRET environment variable is not set');
+  constructor(private readonly configService: ConfigService) {}
+
+  async verify(authHeader: string | undefined): Promise<ClerkUser> {
+    if (!authHeader?.startsWith('Bearer ')) {
+      throw new UnauthorizedException('Missing or invalid authorization header');
     }
 
-    super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-      ignoreExpiration: false,
-      secretOrKey: jwtSecret,
-    });
-  }
+    const token = authHeader.slice(7);
 
-  validate(payload: JwtPayload) {
-    this.logger.debug(`JWT validation for user="${payload.sub}"`);
-    return { id: payload.sub, email: payload.email };
+    try {
+      const clerkSecretKey = this.configService.get<string>('CLERK_SECRET_KEY');
+      if (!clerkSecretKey) {
+        throw new Error('CLERK_SECRET_KEY environment variable is not set');
+      }
+
+      const payload = await verifyToken(token, {
+        secretKey: clerkSecretKey,
+      });
+
+      this.logger.debug(`Clerk token verified for user="${payload.sub}"`);
+
+      return {
+        id: payload.sub,
+        email: (payload.email as string) || '',
+      };
+    } catch (error) {
+      this.logger.warn(`Token verification failed: ${error}`);
+      throw new UnauthorizedException('Invalid or expired token');
+    }
   }
 }
