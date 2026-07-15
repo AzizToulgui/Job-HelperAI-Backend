@@ -133,4 +133,13 @@ export class ChatService {
       include: { messages: { orderBy: { createdAt: 'asc' } } },
     });
   }
+
+  async getUserChats(userId: string) {
+    this.logger.log(`Fetching chats for user ${userId}`);
+    return this.prisma.chat.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, title: true, createdAt: true },
+    });
+  }
 }

@@ -19,6 +19,12 @@ export class ChatController {
 
   constructor(private readonly chatService: ChatService) {}
 
+  @Get()
+  async getUserChats(@Req() req: any) {
+    this.logger.log(`GET /chat - userId=${req.user.id}`);
+    return this.chatService.getUserChats(req.user.id);
+  }
+
   @Post('message')
   async sendMessage(@Body() dto: SendMessageDto, @Req() req: any) {
     this.logger.log(`POST /chat/message - chatId=${dto.chatId || 'new'}`);
