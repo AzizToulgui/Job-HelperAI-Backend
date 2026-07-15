@@ -15,14 +15,38 @@ export class DocumentService {
   ) {}
 
   async upload(userId: string, file: Express.Multer.File, title: string) {
-    if (!file || file.mimetype !== 'application/pdf') {
-      throw new BadRequestException('Only PDF files are allowed');
+    if (!file) {
+      throw new BadRequestException('No file provided');
     }
 
-    this.logger.log(`Uploading document: "${title}" for user ${userId}`);
+    const isPdf =
+      file.mimetype === 'application/pdf' ||
+      file.originalname.toLowerCase().endsWith('.pdf');
+    const isText =
+      file.mimetype.startsWith('text/') ||
+      file.mimetype === 'application/json' ||
+      /\.(txt|md|csv|json|js|ts|py|html|css|xml|yaml|yml)$/i.test(
+        file.originalname,
+      );
+
+    if (!isPdf && !isText) {
+      throw new BadRequestException(
+        'Only PDF and text files are allowed',
+      );
+    }
+
+    this.logger.log(`Uploading document: "${title}" (${file.mimetype}) for user ${userId}`);
 
     const buffer = fs.readFileSync(file.path);
-    const text = await this.ocr.extractText(buffer);
+    let text: string;
+
+    if (isPdf) {
+      text = await this.ocr.extractText(buffer);
+    } else {
+      text = buffer.toString('utf-8');
+    }
+
+    this.logger.log(`Text extracted: ${text.length} chars`);
 
     const document = await this.prisma.document.create({
       data: { title, content: text, filePath: file.path, userId },
@@ -47,6 +71,16 @@ export class DocumentService {
 
       this.logger.debug(`Chunk ${i + 1}/${chunks.length} embedded`);
     }
+
+    const totalChunks = await this.prisma.documentChunk.count({
+      where: { documentId: document.id },
+    });
+    this.logger.log(`Verified: ${totalChunks} chunks in DB for document ${document.id}`);
+
+    await this.prisma.document.update({
+      where: { id: document.id },
+      data: { processed: true },
+    });
 
     this.logger.log(
       `Document "${title}" processed successfully (${chunks.length} chunks)`,
@@ -79,11 +113,17 @@ export class DocumentService {
   }
 
   async searchChunks(query: string, documentId?: string, limit = 6) {
-    this.logger.debug(
+    this.logger.log(
       `Searching chunks: query="${query.substring(0, 50)}...", documentId=${documentId || 'all'}, limit=${limit}`,
     );
 
     const queryEmbedding = await this.embedding.generate(query);
+    this.logger.debug(`Query embedding generated (${queryEmbedding.length} dims)`);
+
+    const totalCount = await this.prisma.documentChunk.count({
+      where: documentId ? { documentId } : undefined,
+    });
+    this.logger.log(`Total chunks in DB for document ${documentId}: ${totalCount}`);
 
     const results = await this.prisma.documentChunk.findMany({
       where: documentId ? { documentId } : undefined,
@@ -95,6 +135,8 @@ export class DocumentService {
       },
       take: limit * 3,
     });
+
+    this.logger.log(`Fetched ${results.length} chunks from DB`);
 
     const ranked = results
       .map((chunk) => ({

@@ -16,8 +16,9 @@ export class ChatService {
 
   async sendMessage(userId: string, dto: SendMessageDto) {
     this.logger.log(
-      `New message from user ${userId}${dto.documentId ? ` (document: ${dto.documentId})` : ''}`,
+      `New message from user ${userId}${dto.documentId ? ` (document: ${dto.documentId})` : '(no document)'}`,
     );
+    this.logger.log(`DTO received: ${JSON.stringify({ message: dto.message?.substring(0, 50), documentId: dto.documentId, chatId: dto.chatId })}`);
 
     let chatId = dto.chatId;
 
@@ -30,20 +31,34 @@ export class ChatService {
     }
 
     await this.prisma.message.create({
-      data: { chatId, role: 'user', content: dto.message },
+      data: {
+        chatId,
+        role: 'user',
+        content: dto.message,
+        documentId: dto.documentId,
+      },
     });
 
     let context = '';
     if (dto.documentId) {
-      this.logger.debug(`Retrieving context for document ${dto.documentId}`);
-      const chunks = await this.documentService.searchChunks(
-        dto.message,
-        dto.documentId,
-      );
-      context = (chunks as any[]).map((c: any) => c.content).join('\n\n');
-      this.logger.debug(
-        `Context retrieved: ${chunks.length} chunks, ${context.length} chars`,
-      );
+      this.logger.log(`Retrieving context for document ${dto.documentId}`);
+      try {
+        const chunks = await this.documentService.searchChunks(
+          dto.message,
+          dto.documentId,
+        );
+        context = (chunks as any[]).map((c: any) => c.content).join('\n\n');
+        this.logger.log(
+          `Context retrieved: ${chunks.length} chunks, ${context.length} chars`,
+        );
+        if (chunks.length > 0) {
+          this.logger.debug(`First chunk preview: ${(chunks[0] as any).content?.substring(0, 100)}`);
+        }
+      } catch (err) {
+        this.logger.error(`Failed to retrieve context: ${err}`);
+      }
+    } else {
+      this.logger.warn('No documentId provided - sending without document context');
     }
 
     const history = await this.prisma.message.findMany({
@@ -60,10 +75,10 @@ export class ChatService {
           : 'You are a helpful assistant.',
       },
       ...history.map((m) => ({ role: m.role, content: m.content })),
-      { role: 'user', content: dto.message },
     ];
 
-    this.logger.debug(`Calling Mistral with ${messages.length} messages`);
+    this.logger.log(`Calling Mistral with ${messages.length} messages, context length: ${context.length} chars`);
+    this.logger.debug(`System prompt preview: ${messages[0]?.content?.substring(0, 200)}`);
     const responseText = await this.mistral.complete(messages);
 
     await this.prisma.message.create({
