@@ -21,8 +21,8 @@ model User {
 model Document {
   id          String    @id @default(cuid())
   title       String
-  content     String?   // Full extracted text
-  filePath    String?   // Path to uploaded file on disk
+  content     String?
+  filePath    String?
   userId      String
   user        User      @relation(fields: [userId], references: [id])
   chunks      DocumentChunk[]
@@ -35,7 +35,7 @@ model DocumentChunk {
   documentId  String
   document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
   content     String
-  embedding   String[]   // Changed from Unsupported vector
+  embedding   String[]
   chunkIndex  Int
   createdAt   DateTime @default(now())
 }
@@ -53,8 +53,8 @@ model Message {
   id          String   @id @default(cuid())
   chatId      String
   chat        Chat     @relation(fields: [chatId], references: [id])
-  role        String   // "user" | "assistant"
+  role        String
   content     String
-  documentId  String?  // Optional context document
+  documentId  String?
   createdAt   DateTime @default(now())
 }
