@@ -126,10 +126,10 @@ export class ChatService {
     return { chatId, response: responseText };
   }
 
-  async getChat(chatId: string) {
+  async getChat(chatId: string, userId: string) {
     this.logger.log(`GET /chat/${chatId}`);
-    return this.prisma.chat.findUnique({
-      where: { id: chatId },
+    return this.prisma.chat.findFirst({
+      where: { id: chatId, userId },
       include: { messages: { orderBy: { createdAt: 'asc' } } },
     });
   }

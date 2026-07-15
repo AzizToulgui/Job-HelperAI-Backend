@@ -32,9 +32,14 @@ export class JwtStrategy {
 
       this.logger.debug(`Clerk token verified for user="${payload.sub}"`);
 
+      const email =
+        (payload.email as string) ||
+        (payload.email_addresses as any[])?.[0]?.email_address ||
+        '';
+
       return {
         id: payload.sub,
-        email: (payload.email as string) || '',
+        email,
       };
     } catch (error) {
       this.logger.warn(`Token verification failed: ${error}`);
