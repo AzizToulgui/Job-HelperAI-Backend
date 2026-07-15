@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MistralService } from '../../services/mistral.service';
 import { DocumentService } from '../document/document.service';
+import { PdfGenerationService } from '../../services/pdf-generation.service';
 import { SendMessageDto } from './dto/chat.dto';
 
 @Injectable()
@@ -12,13 +13,14 @@ export class ChatService {
     private prisma: PrismaService,
     private mistral: MistralService,
     private documentService: DocumentService,
+    private pdfGenerationService: PdfGenerationService,
   ) {}
 
   async sendMessage(userId: string, dto: SendMessageDto) {
     this.logger.log(
-      `New message from user ${userId}${dto.documentId ? ` (document: ${dto.documentId})` : '(no document)'}`,
+      `New message from user ${userId}${dto.documentId ? ` (document: ${dto.documentId})` : '(no document)'}${dto.generatePdf ? ' (PDF generation)' : ''}`,
     );
-    this.logger.log(`DTO received: ${JSON.stringify({ message: dto.message?.substring(0, 50), documentId: dto.documentId, chatId: dto.chatId })}`);
+    this.logger.log(`DTO received: ${JSON.stringify({ message: dto.message?.substring(0, 50), documentId: dto.documentId, chatId: dto.chatId, generatePdf: dto.generatePdf })}`);
 
     let chatId = dto.chatId;
 
@@ -38,6 +40,39 @@ export class ChatService {
         documentId: dto.documentId,
       },
     });
+
+    // PDF Generation flow
+    if (dto.generatePdf) {
+      this.logger.log('Entering PDF generation flow');
+      try {
+        const result = await this.pdfGenerationService.generatePDF(dto.message);
+
+        const responseText = `I've generated your PDF based on your description. You can download it using the button below.`;
+
+        await this.prisma.message.create({
+          data: { chatId, role: 'assistant', content: responseText },
+        });
+
+        this.logger.log(`PDF generated for chat ${chatId}: ${result.fileName}`);
+        return {
+          chatId,
+          response: responseText,
+          pdfUrl: `/documents/download/${result.fileName}`,
+          pdfFileName: result.fileName,
+        };
+      } catch (err) {
+        this.logger.error(`PDF generation failed: ${err}`);
+        const errorText = 'Sorry, PDF generation failed. Please try again with a different description.';
+
+        await this.prisma.message.create({
+          data: { chatId, role: 'assistant', content: errorText },
+        });
+
+        return { chatId, response: errorText };
+      }
+    }
+
+    // Normal chat flow
 
     let context = '';
     if (dto.documentId) {
