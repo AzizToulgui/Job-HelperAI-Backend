@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { MistralService } from '../../services/mistral.service';
 import { DocumentService } from '../document/document.service';
 import { PdfGenerationService } from '../../services/pdf-generation.service';
+import { PdfEditService } from '../../services/pdf-edit.service';
 import { SendMessageDto } from './dto/chat.dto';
 
 @Injectable()
@@ -14,6 +15,7 @@ export class ChatService {
     private mistral: MistralService,
     private documentService: DocumentService,
     private pdfGenerationService: PdfGenerationService,
+    private pdfEditService: PdfEditService,
   ) {}
 
   async sendMessage(userId: string, dto: SendMessageDto) {
@@ -63,6 +65,61 @@ export class ChatService {
       } catch (err) {
         this.logger.error(`PDF generation failed: ${err}`);
         const errorText = 'Sorry, PDF generation failed. Please try again with a different description.';
+
+        await this.prisma.message.create({
+          data: { chatId, role: 'assistant', content: errorText },
+        });
+
+        return { chatId, response: errorText };
+      }
+    }
+
+    // PDF Edit flow
+    if (dto.editPdf) {
+      this.logger.log('Entering PDF edit flow');
+      try {
+        if (!dto.documentId) {
+          const errorText = 'To edit a PDF, please attach a PDF file to your message.';
+
+          await this.prisma.message.create({
+            data: { chatId, role: 'assistant', content: errorText },
+          });
+
+          return { chatId, response: errorText };
+        }
+
+        const document = await this.documentService.getDocument(dto.documentId);
+        if (!document?.filePath) {
+          const errorText = 'Could not find the uploaded PDF file. Please try uploading again.';
+
+          await this.prisma.message.create({
+            data: { chatId, role: 'assistant', content: errorText },
+          });
+
+          return { chatId, response: errorText };
+        }
+
+        const result = await this.pdfEditService.editPdf(
+          document.filePath,
+          dto.message,
+        );
+
+        const responseText = `I've edited your PDF based on your instruction. You can download the modified version below.`;
+
+        await this.prisma.message.create({
+          data: { chatId, role: 'assistant', content: responseText },
+        });
+
+        this.logger.log(`PDF edited for chat ${chatId}: ${result.fileName}`);
+        return {
+          chatId,
+          response: responseText,
+          pdfUrl: `/documents/download/${result.fileName}`,
+          pdfFileName: result.fileName,
+        };
+      } catch (err) {
+        this.logger.error(`PDF edit failed: ${err}`);
+        const errorText = 'Sorry, PDF editing failed. Please try again with a different instruction or a smaller file.';
 
         await this.prisma.message.create({
           data: { chatId, role: 'assistant', content: errorText },

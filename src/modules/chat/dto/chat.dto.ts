@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsArray, IsBoolean } from 'class-validator';
+import { IsString, IsOptional, IsBoolean } from 'class-validator';
 
 export class SendMessageDto {
   @IsString()
@@ -15,6 +15,10 @@ export class SendMessageDto {
   @IsOptional()
   @IsBoolean()
   generatePdf?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  editPdf?: boolean;
 }
 
 export class MessageDto {
