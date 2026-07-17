@@ -52,7 +52,7 @@ model Chat {
 model Message {
   id          String   @id @default(cuid())
   chatId      String
-  chat        Chat     @relation(fields: [chatId], references: [id])
+  chat        Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
   role        String
   content     String
   documentId  String?

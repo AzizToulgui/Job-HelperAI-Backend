@@ -191,6 +191,22 @@ export class ChatService {
     });
   }
 
+  async deleteChat(chatId: string, userId: string) {
+    this.logger.log(`DELETE /chat/${chatId} - userId=${userId}`);
+    const chat = await this.prisma.chat.findFirst({
+      where: { id: chatId, userId },
+    });
+
+    if (!chat) {
+      this.logger.warn(`Chat ${chatId} not found or not owned by user ${userId}`);
+      return null;
+    }
+
+    await this.prisma.chat.delete({ where: { id: chatId } });
+    this.logger.log(`Deleted chat ${chatId}`);
+    return { deleted: true };
+  }
+
   async getUserChats(userId: string) {
     this.logger.log(`Fetching chats for user ${userId}`);
     return this.prisma.chat.findMany({

@@ -1,6 +1,7 @@
 import {
   Controller,
   Post,
+  Delete,
   Body,
   Get,
   Param,
@@ -35,5 +36,15 @@ export class ChatController {
   async getChat(@Param('chatId') chatId: string, @Req() req: any) {
     this.logger.log(`GET /chat/${chatId}`);
     return this.chatService.getChat(chatId, req.user.id);
+  }
+
+  @Delete(':chatId')
+  async deleteChat(@Param('chatId') chatId: string, @Req() req: any) {
+    this.logger.log(`DELETE /chat/${chatId}`);
+    const result = await this.chatService.deleteChat(chatId, req.user.id);
+    if (!result) {
+      return { deleted: false, message: 'Chat not found' };
+    }
+    return result;
   }
 }
